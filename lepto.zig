@@ -118,7 +118,7 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
         else if (min2 <= min1 and max2 >= max1)
             break :block Repr2;
 
-        @compileError("TODO: Unsafe common duration.");
+        @compileError("Cannot derive a common duration from " ++ Duration1.ctStr() ++ " and " ++ Duration2.ctStr());
     };
 
     const Period1 = Duration1.period;
@@ -211,6 +211,10 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
             const rhs_value = scaleDurationTo(rhs, NewRepr, NewPeriod);
             return std.math.compare(lhs_value, op, rhs_value);
         }
+
+        pub fn ctStr() []const u8 {
+            return "Duration(" ++ @typeName(representation) ++ ", " ++ period.ctStr() ++ " secs)";
+        }
     };
 }
 
@@ -236,12 +240,12 @@ pub const nanoseconds = Duration(i64, Ratio.nano);
 pub const microseconds = Duration(i55, Ratio.micro);
 pub const milliseconds = Duration(i45, Ratio.milli);
 pub const seconds = Duration(i35, Ratio.one);
-pub const minutes = Duration(i29, Ratio{ .num = 60 });
-pub const hours = Duration(i29, Ratio{ .num = 3600 });
-pub const days = Duration(i29, Ratio{ .num = 86400 });
-pub const weeks = Duration(i29, Ratio{ .num = 604800 });
-pub const months = Duration(i29, Ratio{ .num = 2629746 });
-pub const years = Duration(i29, Ratio{ .num = 31556952 });
+pub const minutes = Duration(i29, Ratio.from(60, 1));
+pub const hours = Duration(i29, Ratio.from(3600, 1));
+pub const days = Duration(i29, Ratio.from(86400, 1));
+pub const weeks = Duration(i29, Ratio.from(604800, 1));
+pub const months = Duration(i29, Ratio.from(2629746, 1));
+pub const years = Duration(i29, Ratio.from(31556952, 1));
 
 pub fn TimePoint(comptime _Clock: type, comptime _Duration: type) type {
     return struct {
@@ -335,7 +339,7 @@ pub const SysClock = struct {
             std.os.windows.kernel32.GetSystemTimeAsFileTime(&ft);
             const ft64 = (@as(i64, ft.dwHighDateTime) << 32) | (@as(i64, ft.dwLowDateTime));
 
-            const duration_in_hns = Duration(i64, Ratio.mul(nanoseconds.period, Ratio{ .num = 100 }).simplify()).from(ft64);
+            const duration_in_hns = Duration(i64, Ratio.mul(nanoseconds.period, Ratio.from(100, 1)).simplify()).from(ft64);
             return .{ .duration_since_epoch = durationCast(duration, duration_in_hns.sub(nt_to_unix_epoch)) };
         }
         if (std.builtin.os.tag == .wasi and !std.builtin.link_libc) {

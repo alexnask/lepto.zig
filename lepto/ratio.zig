@@ -1,19 +1,29 @@
+const std = @import("std");
+
 num: comptime_int,
 denom: comptime_int = 1,
 
 const Ratio = @This();
 
-pub const nano = Ratio{ .num = 1, .denom = 1_000_000_000 };
-pub const micro = Ratio{ .num = 1, .denom = 1_000_000 };
-pub const milli = Ratio{ .num = 1, .denom = 1_000 };
-pub const zero = Ratio{ .num = 0 };
-pub const one = Ratio{ .num = 1 };
-pub const kilo = Ratio{ .num = 1_000 };
-pub const mega = Ratio{ .num = 1_000_000 };
-pub const giga = Ratio{ .num = 1_000_000_000 };
+pub fn from(comptime num: comptime_int, comptime denom: comptime_int) Ratio {
+    return .{ .num = num, .denom = denom };
+}
 
-pub fn dumpCt(comptime ratio: Ratio) void {
-    @compileLog("Ratio: ", ratio.num, ratio.denom);
+pub const nano = Ratio.from(1, 1_000_000_000);
+pub const micro = Ratio.from(1, 1_000_000);
+pub const milli = Ratio.from(1, 1_000);
+pub const zero = Ratio.from(0, 1);
+pub const one = Ratio.from(1, 1);
+pub const kilo = Ratio.from(1_000, 1);
+pub const mega = Ratio.from(1_000_000, 1);
+pub const giga = Ratio.from(1_000_000_000, 1);
+
+pub fn ctStr(comptime ratio: Ratio) []const u8 {
+    // fn formatIntBuf(out_buf: []u8, value: var, base: u8, uppercase: bool, options: FormatOptions) usize
+    var buf_one: [32]u8 = undefined;
+    var buf_two: [32]u8 = undefined;
+    return buf_one[0..std.fmt.formatIntBuf(&buf_one, ratio.num, 10, false, std.fmt.FormatOptions{})] ++
+        "/" ++ buf_two[0..std.fmt.formatIntBuf(&buf_two, ratio.denom, 10, false, std.fmt.FormatOptions{})];
 }
 
 pub fn sub(comptime ratio1: Ratio, comptime ratio2: Ratio) Ratio {

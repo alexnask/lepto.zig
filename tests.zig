@@ -2,8 +2,8 @@ const std = @import("std");
 usingnamespace (@import("lepto.zig"));
 
 test "Ratio mod" {
-    const res = Ratio.mod(Ratio{ .num = -3, .denom = 5 }, Ratio{ .num = 1, .denom = 4 });
-    std.debug.assert(res.eql(Ratio{ .num = -1, .denom = 10 }));
+    const res = Ratio.mod(Ratio.from(-3, 5), Ratio.from(1, 4));
+    std.debug.assert(res.eql(Ratio.from(-1, 10)));
 }
 
 test "Ratio GCD" {
