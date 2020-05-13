@@ -9,7 +9,7 @@ fn numericLowestValue(comptime T: type) T {
     std.debug.assert(isNumeric(T));
 
     if (std.meta.trait.is(.Int)(T)) {
-        return std.math.minint(T);
+        return std.math.minInt(T);
     }
 
     // Floating point representations
@@ -26,7 +26,7 @@ fn numericHighestValue(comptime T: type) T {
     std.debug.assert(isNumeric(T));
 
     if (std.meta.trait.is(.Int)(T)) {
-        return std.math.maxint(T);
+        return std.math.maxInt(T);
     }
 
     // Floating point representations
@@ -94,38 +94,55 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
     const is_float1 = comptime std.meta.trait.is(.Float)(Repr1);
     const is_float2 = comptime std.meta.trait.is(.Float)(Repr2);
 
-    // TODO: Split this into a CommonNumericalType
-    const Repr = if (is_float1 and !is_float2)
-        Repr1
-    else if (!is_float1 and is_float2)
-        Repr2
-    else if (is_float1 and is_float2)
-        if (std.meta.bitCount(Repr1) > std.meta.bitCount(Repr2))
-            Repr1
-        else
-            Repr2
-    else block: {
-        // TODO: Check this more correctly by taking periods into account, choosing the widest duration possible
-        //       and returning a type that fits that duration with the new period
-        const min1 = std.math.minInt(Repr1);
-        const max1 = std.math.maxInt(Repr1);
+    const Period = Ratio.gcd(Duration1.period, Duration2.period);
 
-        const min2 = std.math.minInt(Repr2);
-        const max2 = std.math.maxInt(Repr2);
+    if (is_float1 and !is_float2)
+        return Duration(Repr1, Period);
 
-        if (min1 <= min2 and max1 >= max2)
-            break :block Repr1
-        else if (min2 <= min1 and max2 >= max1)
-            break :block Repr2;
+    if (!is_float1 and is_float2)
+        return Duration(Repr2, Period);
 
-        @compileError("Cannot derive a common duration from " ++ Duration1.ctStr() ++ " and " ++ Duration2.ctStr());
-    };
+    if (is_float1 and is_float2) {
+        if (comptime (std.meta.bitCount(Repr1) > std.meta.bitCount(Repr2))) {
+            return Duration(Repr1, Period);
+        } else {
+            return Duration(Repr2, Period);
+        }
+    }
 
-    const Period1 = Duration1.period;
-    const Period2 = Duration2.period;
-    const Period = Ratio.gcd(Period1, Period2).divisor.simplify();
+    const min1 = @as(comptime_int, std.math.minInt(Repr1));
+    const max1 = @as(comptime_int, std.math.maxInt(Repr1));
 
-    return Duration(Repr, Period);
+    const min_secs1 = Duration1.period.mulRt(min1);
+    const max_secs1 = Duration1.period.mulRt(max1);
+
+    const min2 = @as(comptime_int, std.math.minInt(Repr2));
+    const max2 = @as(comptime_int, std.math.maxInt(Repr2));
+
+    const min_secs2 = Duration2.period.mulRt(min2);
+    const max_secs2 = Duration2.period.mulRt(max2);
+
+    const min_repr = Period.inverse().mulRt(std.math.min(min_secs1, min_secs2));
+    const max_repr = Period.inverse().mulRt(std.math.max(max_secs1, max_secs2));
+
+    if (min_repr == 0) {
+        const bits = std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, max_repr + 1))));
+        return Duration(@Type(std.builtin.TypeInfo{
+            .Int = .{
+                .is_signed = true,
+                .bits = @floatToInt(comptime_int, bits),
+            },
+        }), Period);
+    }
+
+    const bits = std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, -min_repr + 1))));
+    return Duration(@Type(std.builtin.TypeInfo{
+        .Int = .{
+            .is_signed = true,
+            .bits = @floatToInt(comptime_int, bits),
+        },
+    }), Period);
+
 }
 
 pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
@@ -137,9 +154,9 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
         pub const period = Period;
         pub const representation = Representation;
 
-        pub const zero = Self{ .value = 0 };
-        pub const min = Self{ .value = numericLowestValue(representation) };
-        pub const max = Self{ .value = numericHighestValue(representation) };
+        pub const zero = Self.from(0);
+        pub const min = Self.from(numericLowestValue(representation));
+        pub const max = Self.from(numericHighestValue(representation));
 
         value: representation,
 
@@ -159,24 +176,30 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
         }
 
         pub fn sub(lhs: Self, rhs: var) ArithmeticResult(@TypeOf(rhs)) {
-            if (comptime isValueArithmetic(@TypeOf(rhs), representation))
+            const Rhs = @TypeOf(rhs);
+            if (comptime isValueArithmetic(Rhs, representation))
                 return .{ .value = lhs.value - rhs };
 
-            const NewPeriod = ArithmeticResult(@TypeOf(rhs)).period;
-            const NewRepr = ArithmeticResult(@TypeOf(rhs)).representation;
-            const lhs_value = scaleDurationTo(lhs, NewRepr, NewPeriod);
-            const rhs_value = scaleDurationTo(rhs, NewRepr, NewPeriod);
+            const NewPeriod = ArithmeticResult(Rhs).period;
+            const NewRepr = ArithmeticResult(Rhs).representation;
+
+            const lhs_value = period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, lhs.value));
+            const rhs_value = Rhs.period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, rhs.value));
+
             return .{ .value = lhs_value - rhs_value };
         }
 
         pub fn add(lhs: Self, rhs: var) ArithmeticResult(@TypeOf(rhs)) {
-            if (comptime isValueArithmetic(@TypeOf(rhs), representation))
+            const Rhs = @TypeOf(rhs);
+            if (comptime isValueArithmetic(Rhs, representation))
                 return .{ .value = lhs.value + rhs };
 
-            const NewPeriod = ArithmeticResult(@TypeOf(rhs)).period;
-            const NewRepr = ArithmeticResult(@TypeOf(rhs)).representation;
-            const lhs_value = scaleDurationTo(lhs, NewRepr, NewPeriod);
-            const rhs_value = scaleDurationTo(rhs, NewRepr, NewPeriod);
+            const NewPeriod = ArithmeticResult(Rhs).period;
+            const NewRepr = ArithmeticResult(Rhs).representation;
+
+            const lhs_value = period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, lhs.value));
+            const rhs_value = Rhs.period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, rhs.value));
+
             return .{ .value = lhs_value + rhs_value };
         }
 
@@ -191,24 +214,30 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
 
         // Order and compare
         pub fn order(lhs: Self, rhs: var) Order {
-            if (comptime isValueArithmetic(@TypeOf(rhs), representation))
+            const Rhs = @TypeOf(rhs);
+            if (comptime isValueArithmetic(Rhs, representation))
                 return std.math.order(lhs.value, rhs);
 
-            const NewPeriod = ArithmeticResult(@TypeOf(rhs)).period;
-            const NewRepr = ArithmeticResult(@TypeOf(rhs)).representation;
+            const NewPeriod = ArithmeticResult(Rhs).period;
+            const NewRepr = ArithmeticResult(Rhs).representation;
+
             const lhs_value = scaleDurationTo(lhs, NewRepr, NewPeriod);
             const rhs_value = scaleDurationTo(rhs, NewRepr, NewPeriod);
+
             return std.math.order(lhs_value, rhs_value);
         }
 
         pub fn compare(lhs: Self, op: CompareOperator, rhs: var) bool {
-            if (comptime isValueArithmetic(@TypeOf(rhs), representation))
+            const Rhs = @TypeOf(rhs);
+            if (comptime isValueArithmetic(Rhs, representation))
                 return std.math.compare(lhs.value, op, rhs);
 
-            const NewPeriod = ArithmeticResult(@TypeOf(rhs)).period;
-            const NewRepr = ArithmeticResult(@TypeOf(rhs)).representation;
+            const NewPeriod = ArithmeticResult(Rhs).period;
+            const NewRepr = ArithmeticResult(Rhs).representation;
+
             const lhs_value = scaleDurationTo(lhs, NewRepr, NewPeriod);
             const rhs_value = scaleDurationTo(rhs, NewRepr, NewPeriod);
+
             return std.math.compare(lhs_value, op, rhs_value);
         }
 
@@ -219,8 +248,13 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
 }
 
 fn scaleDurationTo(duration: var, comptime NewRepr: type, comptime NewPeriod: Ratio) NewRepr {
-    comptime checkDuration(@TypeOf(duration));
-    return Ratio.mulRt(@TypeOf(duration).period.div(NewPeriod).simplify(), @intCast(NewRepr, duration.value));
+    const OldDuration = @TypeOf(duration);
+    comptime checkDuration(OldDuration);
+
+    if (comptime (std.meta.bitCount(NewRepr) > std.meta.bitCount(OldDuration.representation)))
+        return Ratio.mulRt(OldDuration.period.div(NewPeriod).simplify(), @intCast(NewRepr, duration.value));
+
+    return @intCast(NewRepr, Ratio.mulRt(OldDuration.period.div(NewPeriod).simplify(), duration.value));
 }
 
 pub fn durationCast(comptime Dest: type, duration: var) Dest {
@@ -233,7 +267,7 @@ pub fn durationCast(comptime Dest: type, duration: var) Dest {
     return .{ .value = scaleDurationTo(duration, Dest.representation, Dest.period) };
 }
 
-// These duration types cover a range of at least +- 40_000 years
+// These duration types cover a range of at least +- 292 years
 // Years is equal to 365.2425 days (the average length of a Gregorian year)
 // Months is equal to 1/12 of years, weeks to 7 days
 pub const nanoseconds = Duration(i64, Ratio.nano);
@@ -241,11 +275,11 @@ pub const microseconds = Duration(i55, Ratio.micro);
 pub const milliseconds = Duration(i45, Ratio.milli);
 pub const seconds = Duration(i35, Ratio.one);
 pub const minutes = Duration(i29, Ratio.from(60, 1));
-pub const hours = Duration(i29, Ratio.from(3600, 1));
-pub const days = Duration(i29, Ratio.from(86400, 1));
-pub const weeks = Duration(i29, Ratio.from(604800, 1));
-pub const months = Duration(i29, Ratio.from(2629746, 1));
-pub const years = Duration(i29, Ratio.from(31556952, 1));
+pub const hours = Duration(i23, Ratio.from(3600, 1));
+pub const days = Duration(i25, Ratio.from(86400, 1));
+pub const weeks = Duration(i22, Ratio.from(604800, 1));
+pub const months = Duration(i20, Ratio.from(2629746, 1));
+pub const years = Duration(i17, Ratio.from(31556952, 1));
 
 pub fn TimePoint(comptime _Clock: type, comptime _Duration: type) type {
     return struct {

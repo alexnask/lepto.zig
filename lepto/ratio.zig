@@ -9,21 +9,24 @@ pub fn from(comptime num: comptime_int, comptime denom: comptime_int) Ratio {
     return .{ .num = num, .denom = denom };
 }
 
-pub const nano = Ratio.from(1, 1_000_000_000);
+pub const nano  = Ratio.from(1, 1_000_000_000);
 pub const micro = Ratio.from(1, 1_000_000);
 pub const milli = Ratio.from(1, 1_000);
-pub const zero = Ratio.from(0, 1);
-pub const one = Ratio.from(1, 1);
-pub const kilo = Ratio.from(1_000, 1);
-pub const mega = Ratio.from(1_000_000, 1);
-pub const giga = Ratio.from(1_000_000_000, 1);
+pub const zero  = Ratio.from(0, 1);
+pub const one   = Ratio.from(1, 1);
+pub const kilo  = Ratio.from(1_000, 1);
+pub const mega  = Ratio.from(1_000_000, 1);
+pub const giga  = Ratio.from(1_000_000_000, 1);
 
 pub fn ctStr(comptime ratio: Ratio) []const u8 {
-    // fn formatIntBuf(out_buf: []u8, value: var, base: u8, uppercase: bool, options: FormatOptions) usize
     var buf_one: [32]u8 = undefined;
     var buf_two: [32]u8 = undefined;
     return buf_one[0..std.fmt.formatIntBuf(&buf_one, ratio.num, 10, false, std.fmt.FormatOptions{})] ++
         "/" ++ buf_two[0..std.fmt.formatIntBuf(&buf_two, ratio.denom, 10, false, std.fmt.FormatOptions{})];
+}
+
+pub fn inverse(comptime ratio: Ratio) Ratio {
+    return .{ .num = ratio.denom, .denom = ratio.num };
 }
 
 pub fn sub(comptime ratio1: Ratio, comptime ratio2: Ratio) Ratio {
@@ -49,8 +52,8 @@ pub fn simplify(comptime self: Ratio) Ratio {
     var denom = (Ratio{ .num = self.denom }).abs();
     const gcd_res = gcd(num.abs(), denom.abs());
 
-    num = div(num, gcd_res.divisor);
-    denom = div(denom, gcd_res.divisor);
+    num = div(num, gcd_res);
+    denom = div(denom, gcd_res);
 
     return .{
         .num = @divExact(if (is_negative) -num.num else num.num, num.denom),
@@ -84,18 +87,11 @@ pub fn mul(comptime ratio1: Ratio, comptime ratio2: Ratio) Ratio {
 }
 
 pub fn mulRt(comptime ratio: Ratio, arg: var) @TypeOf(arg) {
-    // TODO: divFloor perhaps?
     return @divTrunc(ratio.num * arg, ratio.denom);
 }
 
-pub const GcdResult = struct {
-    divisor: Ratio,
-    coeff1: Ratio,
-    coeff2: Ratio,
-};
-
-/// Extended Euclidean algorithm
-pub fn gcd(comptime ratio1: Ratio, comptime ratio2: Ratio) GcdResult {
+/// Euclidean GCD algorithm
+pub fn gcd(comptime ratio1: Ratio, comptime ratio2: Ratio) Ratio {
     var prev_x = one;
     var x = zero;
 
@@ -120,11 +116,7 @@ pub fn gcd(comptime ratio1: Ratio, comptime ratio2: Ratio) GcdResult {
         b = mod(tmp_a, b);
     }
 
-    return .{
-        .divisor = a,
-        .coeff1 = prev_x,
-        .coeff2 = prev_y,
-    };
+    return a;
 }
 
 pub fn eql(comptime ratio1: Ratio, comptime ratio2: Ratio) bool {

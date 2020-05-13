@@ -3,18 +3,16 @@ usingnamespace (@import("lepto.zig"));
 
 test "Ratio mod" {
     const res = Ratio.mod(Ratio.from(-3, 5), Ratio.from(1, 4));
-    std.debug.assert(res.eql(Ratio.from(-1, 10)));
+    comptime std.debug.assert(res.eql(Ratio.from(-1, 10)));
 }
 
 test "Ratio GCD" {
     const res = Ratio.gcd(Ratio.milli, Ratio.micro);
-    std.debug.assert(res.divisor.eql(Ratio.micro));
-    std.debug.assert(res.coeff1.eql(Ratio.zero));
-    std.debug.assert(res.coeff2.eql(Ratio.one));
+    comptime std.debug.assert(res.eql(Ratio.micro));
 }
 
 test "Duration arithmetic" {
-    const dur = minutes.from(30).add(seconds.from(60));
+    const dur = comptime minutes.from(30).add(seconds.from(60));
     std.debug.assert(dur.value == 30 * 60 + 60);
 
     const double_dur = dur.mul(2);
@@ -24,12 +22,31 @@ test "Duration arithmetic" {
 }
 
 test "Duration ordering, comparison" {
-    std.debug.assert(years.from(2).order(seconds.from(1_000)) == .gt);
-    std.debug.assert(nanoseconds.from(1000).compare(.eq, microseconds.from(1)));
+    comptime std.debug.assert(years.from(2).order(seconds.from(1_000)) == .gt);
+    comptime std.debug.assert(nanoseconds.from(1000).compare(.eq, microseconds.from(1)));
+}
+
+fn testRange(comptime Dur: type) void {
+    std.debug.assert(Dur.max.compare(.gte, years.from(292)));
+    std.debug.assert(Dur.min.compare(.lte, years.from(-292)));
+}
+
+test "Standard duration rages" {
+    @setEvalBranchQuota(2000);
+    comptime testRange(nanoseconds);
+    comptime testRange(microseconds);
+    comptime testRange(milliseconds);
+    comptime testRange(seconds);
+    comptime testRange(minutes);
+    comptime testRange(hours);
+    comptime testRange(days);
+    comptime testRange(weeks);
+    comptime testRange(months);
+    comptime testRange(years);
 }
 
 test "Duration cast" {
-    std.debug.assert(durationCast(milliseconds, seconds.from(4)).compare(.eq, 4_000));
+    comptime std.debug.assert(durationCast(milliseconds, seconds.from(4)).compare(.eq, 4_000));
 }
 
 test "SysClock times" {
@@ -39,3 +56,4 @@ test "SysClock times" {
 
     std.debug.assert(durationCast(seconds, t2.sub(t1)).compare(.eq, 1));
 }
+
