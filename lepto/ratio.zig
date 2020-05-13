@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("lepto/utils.zig");
 
 num: comptime_int,
 denom: comptime_int = 1,
@@ -19,10 +20,7 @@ pub const mega  = Ratio.from(1_000_000, 1);
 pub const giga  = Ratio.from(1_000_000_000, 1);
 
 pub fn ctStr(comptime ratio: Ratio) []const u8 {
-    var buf_one: [32]u8 = undefined;
-    var buf_two: [32]u8 = undefined;
-    return buf_one[0..std.fmt.formatIntBuf(&buf_one, ratio.num, 10, false, std.fmt.FormatOptions{})] ++
-        "/" ++ buf_two[0..std.fmt.formatIntBuf(&buf_two, ratio.denom, 10, false, std.fmt.FormatOptions{})];
+    return utils.ctIntToStr(ratio.num) ++ "/" ++ utils.ctIntToStr(ratio.denom);
 }
 
 pub fn inverse(comptime ratio: Ratio) Ratio {

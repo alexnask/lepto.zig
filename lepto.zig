@@ -1,5 +1,6 @@
 const std = @import("std");
 pub const Ratio = @import("lepto/ratio.zig");
+const utils = @import("lepto/utils.zig");
 
 const Order = std.math.Order;
 const CompareOperator = std.math.CompareOperator;
@@ -46,6 +47,12 @@ pub fn isClock(comptime T: type) bool {
     // TODO: Check for `now()`
 }
 
+const root = @import("root");
+const common_duration_max_bit_count = if (@hasDecl(root, "common_duration_max_bit_count"))
+    root.common_duration_max_bit_count
+else
+    128;
+
 pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
     checkDuration(Duration2);
     checkDuration(Duration1);
@@ -73,7 +80,12 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
     const max_repr = Period.inverse().mulInt(std.math.max(max_secs1, max_secs2));
 
     if (min_repr == 0) {
-        const bits = std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, max_repr + 1))));
+        const bits = @floatToInt(comptime_int, std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, max_repr + 1)))));
+        if (bits > common_duration_max_bit_count) {
+            @compileError("Common duration with bit count " ++ utils.ctIntToStr(bits) ++ ", higher than the maximum " ++
+                utils.ctIntToStr(common_duration_max_bit_count));
+        }
+
         return Duration(@Type(std.builtin.TypeInfo{
             .Int = .{
                 .is_signed = true,
@@ -82,14 +94,17 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
         }), Period);
     }
 
-    const bits = std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, -min_repr - 1)))) + 1;
+    const bits = @floatToInt(comptime_int, std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, -min_repr - 1)))) + 1);
+    if (bits > common_duration_max_bit_count) {
+        @compileError("Common duration with bit count " ++ utils.ctIntToStr(bits) ++ ", higher than the maximum " ++
+            utils.ctIntToStr(common_duration_max_bit_count));
+    }
     return Duration(@Type(std.builtin.TypeInfo{
         .Int = .{
             .is_signed = true,
-            .bits = @floatToInt(comptime_int, bits),
+            .bits = bits,
         },
     }), Period);
-
 }
 
 pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
