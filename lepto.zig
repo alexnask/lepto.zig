@@ -4,54 +4,18 @@ pub const Ratio = @import("lepto/ratio.zig");
 const Order = std.math.Order;
 const CompareOperator = std.math.CompareOperator;
 
-// TODO: Split these into another file
-fn numericLowestValue(comptime T: type) T {
-    std.debug.assert(isNumeric(T));
-
-    if (std.meta.trait.is(.Int)(T)) {
-        return std.math.minInt(T);
-    }
-
-    // Floating point representations
-    return switch (T) {
-        f16 => -std.math.f16_max,
-        f32 => -std.math.f32_max,
-        f64 => -std.math.f64_max,
-        f128 => -std.math.f128_max,
-        else => unreachable,
-    };
-}
-
-fn numericHighestValue(comptime T: type) T {
-    std.debug.assert(isNumeric(T));
-
-    if (std.meta.trait.is(.Int)(T)) {
-        return std.math.maxInt(T);
-    }
-
-    // Floating point representations
-    return switch (T) {
-        f16 => std.math.f16_max,
-        f32 => std.math.f32_max,
-        f64 => std.math.f64_max,
-        f128 => std.math.f128_max,
-        else => unreachable,
-    };
-}
-
 fn isValueArithmetic(comptime T: type, comptime Repr: type) bool {
     return T == Repr or
-        T == comptime_int or
-        (std.meta.trait.is(.Float)(Repr) and T == comptime_float);
+        T == comptime_int;
 }
 
-fn isNumeric(comptime T: type) bool {
-    return std.meta.trait.is(.Int)(T) or std.meta.trait.is(.Float)(T);
+fn isInteger(comptime T: type) bool {
+    return std.meta.trait.is(.Int)(T);
 }
 
-fn checkNumeric(comptime T: type) void {
-    if (comptime !isNumeric(T)) {
-        @compileError("Type " ++ @typeName(T) ++ " is non-numeric.");
+fn checkInteger(comptime T: type) void {
+    if (comptime !isInteger(T)) {
+        @compileError("Type " ++ @typeName(T) ++ " is not an integer type.");
     }
 }
 
@@ -91,24 +55,7 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
     const Repr1 = Duration1.representation;
     const Repr2 = Duration2.representation;
 
-    const is_float1 = comptime std.meta.trait.is(.Float)(Repr1);
-    const is_float2 = comptime std.meta.trait.is(.Float)(Repr2);
-
     const Period = Ratio.gcd(Duration1.period, Duration2.period);
-
-    if (is_float1 and !is_float2)
-        return Duration(Repr1, Period);
-
-    if (!is_float1 and is_float2)
-        return Duration(Repr2, Period);
-
-    if (is_float1 and is_float2) {
-        if (comptime (std.meta.bitCount(Repr1) > std.meta.bitCount(Repr2))) {
-            return Duration(Repr1, Period);
-        } else {
-            return Duration(Repr2, Period);
-        }
-    }
 
     const min1 = @as(comptime_int, std.math.minInt(Repr1));
     const max1 = @as(comptime_int, std.math.maxInt(Repr1));
@@ -146,7 +93,7 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
 }
 
 pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
-    checkNumeric(Representation);
+    checkInteger(Representation);
 
     return struct {
         const Self = @This();
@@ -155,8 +102,8 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
         pub const representation = Representation;
 
         pub const zero = Self.from(0);
-        pub const min = Self.from(numericLowestValue(representation));
-        pub const max = Self.from(numericHighestValue(representation));
+        pub const min = Self.from(std.math.minInt(representation));
+        pub const max = Self.from(std.math.maxInt(representation));
 
         value: representation,
 
@@ -288,11 +235,16 @@ pub fn TimePoint(comptime _Clock: type, comptime _Duration: type) type {
         pub const clock = _Clock;
         pub const duration = _Duration;
 
-        pub const zero = Self{ .duration_since_epoch = 0 };
-        pub const min = Self{ .duration_since_epoch = duration.min };
-        pub const max = Self{ .duration_since_epoch = duration.max };
+        pub const zero = Self.from(duration.zero);
+        pub const min = Self.from(duration.min);
+        pub const max = Self.from(duration.max);
 
         duration_since_epoch: duration,
+
+        // TODO: More overloads for this? Initialize from another TimePoint?
+        fn from(dur: var) Self {
+            return .{ .duration_since_epoch = durationCast(duration, dur) };
+        }
 
         // Arithmetic
         fn SubResult(comptime T: type) type {
@@ -308,7 +260,7 @@ pub fn TimePoint(comptime _Clock: type, comptime _Duration: type) type {
 
         pub fn sub(lhs: Self, rhs: var) SubResult(@TypeOf(rhs)) {
             if (comptime !isTimePoint(@TypeOf(rhs)))
-                return .{ .duration_since_epoch = lhs.duration_since_epoch.sub(rhs) };
+                return Self.from(lhs.duration_since_epoch.sub(rhs));
 
             const casted_rhs = clockCast(clock, rhs);
             return lhs.duration_since_epoch.sub(casted_rhs.duration_since_epoch);
@@ -325,7 +277,7 @@ pub fn TimePoint(comptime _Clock: type, comptime _Duration: type) type {
         }
 
         pub fn add(lhs: Self, rhs: var) AddResult(@TypeOf(rhs)) {
-            return .{ .duration_since_epoch = lhs.duration_since_epoch.add(rhs) };
+            return Self.from(lhs.duration_since_epoch.add(rhs));
         }
 
         // Order and compare
@@ -374,14 +326,14 @@ pub const SysClock = struct {
             const ft64 = (@as(i64, ft.dwHighDateTime) << 32) | (@as(i64, ft.dwLowDateTime));
 
             const duration_in_hns = Duration(i64, Ratio.mul(nanoseconds.period, Ratio.from(100, 1)).simplify()).from(ft64);
-            return .{ .duration_since_epoch = durationCast(duration, duration_in_hns.sub(nt_to_unix_epoch)) };
+            return time_point.from(duration_in_hns.sub(nt_to_unix_epoch));
         }
         if (std.builtin.os.tag == .wasi and !std.builtin.link_libc) {
             var ns: std.os.wasi.timestamp_t = undefined;
             const err = std.os.wasi.clock_time_get(std.os.wasi.CLOCK_REALTIME, 1, &ns);
             std.debug.assert(err == std.os.wasi.ESUCCESS);
 
-            return .{ .duration_since_epoch = durationCast(duration, nanoseconds.from(@intCast(i64, ns))) };
+            return time_point.from(nanoseconds.from(@intCast(i64, ns)));
         }
         if (comptime std.Target.current.isDarwin()) {
             var tv: std.os.darwin.timeval = undefined;
@@ -390,7 +342,7 @@ pub const SysClock = struct {
             const secs = seconds.from(@intCast(seconds.representation, tv.tv_sec));
             const microsecs = microseconds.from(@intCast(microseconds.representation, tv.tv_usec));
 
-            return .{ .duration_since_epoch = durationCast(duration, secs.add(microsecs)) };
+            return time_point.from(secs.add(microsecs));
         }
 
         var ts: std.os.timespec = undefined;
@@ -398,7 +350,7 @@ pub const SysClock = struct {
         const secs = seconds.from(@intCast(seconds.representation, ts.tv_sec));
         const nanosecs = nanoseconds.from(@intCast(nanoseconds.representation, ts.tv_nsec));
 
-        return .{ .duration_since_epoch = durationCast(duration, secs.add(nanosecs)) };
+        return time_point.from(secs.add(nanosecs));
     }
 };
 
