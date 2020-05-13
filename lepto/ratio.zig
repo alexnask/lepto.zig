@@ -86,7 +86,7 @@ pub fn mul(comptime ratio1: Ratio, comptime ratio2: Ratio) Ratio {
     };
 }
 
-pub fn mulRt(comptime ratio: Ratio, arg: var) @TypeOf(arg) {
+pub fn mulInt(comptime ratio: Ratio, arg: var) @TypeOf(arg) {
     return @divTrunc(ratio.num * arg, ratio.denom);
 }
 

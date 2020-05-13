@@ -60,17 +60,17 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
     const min1 = @as(comptime_int, std.math.minInt(Repr1));
     const max1 = @as(comptime_int, std.math.maxInt(Repr1));
 
-    const min_secs1 = Duration1.period.mulRt(min1);
-    const max_secs1 = Duration1.period.mulRt(max1);
+    const min_secs1 = Duration1.period.mulInt(min1);
+    const max_secs1 = Duration1.period.mulInt(max1);
 
     const min2 = @as(comptime_int, std.math.minInt(Repr2));
     const max2 = @as(comptime_int, std.math.maxInt(Repr2));
 
-    const min_secs2 = Duration2.period.mulRt(min2);
-    const max_secs2 = Duration2.period.mulRt(max2);
+    const min_secs2 = Duration2.period.mulInt(min2);
+    const max_secs2 = Duration2.period.mulInt(max2);
 
-    const min_repr = Period.inverse().mulRt(std.math.min(min_secs1, min_secs2));
-    const max_repr = Period.inverse().mulRt(std.math.max(max_secs1, max_secs2));
+    const min_repr = Period.inverse().mulInt(std.math.min(min_secs1, min_secs2));
+    const max_repr = Period.inverse().mulInt(std.math.max(max_secs1, max_secs2));
 
     if (min_repr == 0) {
         const bits = std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, max_repr + 1))));
@@ -130,8 +130,8 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
             const NewPeriod = ArithmeticResult(Rhs).period;
             const NewRepr = ArithmeticResult(Rhs).representation;
 
-            const lhs_value = period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, lhs.value));
-            const rhs_value = Rhs.period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, rhs.value));
+            const lhs_value = period.div(NewPeriod).simplify().mulInt(@intCast(NewRepr, lhs.value));
+            const rhs_value = Rhs.period.div(NewPeriod).simplify().mulInt(@intCast(NewRepr, rhs.value));
 
             return .{ .value = lhs_value - rhs_value };
         }
@@ -144,8 +144,8 @@ pub fn Duration(comptime Representation: type, comptime Period: Ratio) type {
             const NewPeriod = ArithmeticResult(Rhs).period;
             const NewRepr = ArithmeticResult(Rhs).representation;
 
-            const lhs_value = period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, lhs.value));
-            const rhs_value = Rhs.period.div(NewPeriod).simplify().mulRt(@intCast(NewRepr, rhs.value));
+            const lhs_value = period.div(NewPeriod).simplify().mulInt(@intCast(NewRepr, lhs.value));
+            const rhs_value = Rhs.period.div(NewPeriod).simplify().mulInt(@intCast(NewRepr, rhs.value));
 
             return .{ .value = lhs_value + rhs_value };
         }
@@ -199,9 +199,9 @@ fn scaleDurationTo(duration: var, comptime NewRepr: type, comptime NewPeriod: Ra
     comptime checkDuration(OldDuration);
 
     if (comptime (std.meta.bitCount(NewRepr) > std.meta.bitCount(OldDuration.representation)))
-        return Ratio.mulRt(OldDuration.period.div(NewPeriod).simplify(), @intCast(NewRepr, duration.value));
+        return Ratio.mulInt(OldDuration.period.div(NewPeriod).simplify(), @intCast(NewRepr, duration.value));
 
-    return @intCast(NewRepr, Ratio.mulRt(OldDuration.period.div(NewPeriod).simplify(), duration.value));
+    return @intCast(NewRepr, Ratio.mulInt(OldDuration.period.div(NewPeriod).simplify(), duration.value));
 }
 
 pub fn durationCast(comptime Dest: type, duration: var) Dest {
