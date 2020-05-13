@@ -135,7 +135,7 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
         }), Period);
     }
 
-    const bits = std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, -min_repr + 1))));
+    const bits = std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, -min_repr - 1)))) + 1;
     return Duration(@Type(std.builtin.TypeInfo{
         .Int = .{
             .is_signed = true,
