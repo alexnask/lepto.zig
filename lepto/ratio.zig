@@ -7,6 +7,7 @@ denom: comptime_int = 1,
 const Ratio = @This();
 
 pub fn from(comptime num: comptime_int, comptime denom: comptime_int) Ratio {
+    std.debug.assert(denom > 0);
     return .{ .num = num, .denom = denom };
 }
 
