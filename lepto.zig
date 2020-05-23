@@ -94,7 +94,7 @@ pub fn CommonDuration(comptime Duration1: type, comptime Duration2: type) type {
         }), Period);
     }
 
-    const bits = @floatToInt(comptime_int, std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, -min_repr - 1)))) + 1);
+    const bits = @floatToInt(comptime_int, std.math.ceil(@as(f64, std.math.log2(@intToFloat(comptime_float, -min_repr + 1)))) + 1);
     if (bits > common_duration_max_bit_count) {
         @compileError("Common duration with bit count " ++ utils.ctIntToStr(bits) ++ ", higher than the maximum " ++
             utils.ctIntToStr(common_duration_max_bit_count));
@@ -340,7 +340,9 @@ pub const SysClock = struct {
             std.os.windows.kernel32.GetSystemTimeAsFileTime(&ft);
             const ft64 = (@as(i64, ft.dwHighDateTime) << 32) | (@as(i64, ft.dwLowDateTime));
 
-            const duration_in_hns = Duration(i64, Ratio.mul(nanoseconds.period, Ratio.from(100, 1)).simplify()).from(ft64);
+            const @"100 nanoseconds" = Ratio.mul(nanoseconds.period, Ratio.from(100, 1)).simplify();
+
+            const duration_in_hns = Duration(i64, @"100 nanoseconds").from(ft64);
             return time_point.from(duration_in_hns.sub(nt_to_unix_epoch));
         }
         if (std.builtin.os.tag == .wasi and !std.builtin.link_libc) {
@@ -352,7 +354,7 @@ pub const SysClock = struct {
         }
         if (comptime std.Target.current.isDarwin()) {
             var tv: std.os.darwin.timeval = undefined;
-            var err = std.os.darwin.gettimeofday(&tv, null);
+            const err = std.os.darwin.gettimeofday(&tv, null);
             std.debug.assert(err == 0);
             const secs = seconds.from(@intCast(seconds.representation, tv.tv_sec));
             const microsecs = microseconds.from(@intCast(microseconds.representation, tv.tv_usec));
@@ -373,6 +375,53 @@ pub fn SysTime(comptime PeriodInSecs: var) type {
     return TimePoint(SysClock, PeriodInSecs);
 }
 pub const SysDays = SysTime(days);
+
+pub const SteadyClock = struct {
+    pub const duration = nanoseconds;
+    pub const time_point = TimePoint(SteadyClock, duration);
+    pub const is_steady = true;
+
+    // @TODO: Actually implement this
+    pub fn now() time_point {
+        if (std.builtin.os.tag == .windows) {
+            const u64_seconds = Duration(u64, Ratio.one);
+
+            const freq = std.os.windows.QueryPerformanceFrequency();
+            const counter = std.os.windows.QueryPerformanceCounter();
+
+            const in_seconds = u64_seconds.from(@divTrunc(counter, freq));
+            return time_point.from(in_seconds);
+        }
+        if (std.builtin.os.tag == .wasi and !std.builtin.link_libc) {
+            var ns: std.os.wasi.timestamp_t = undefined;
+            // TODO: Can we actually rely on the monotonic clock bein nanosecond resolution?
+            const err = std.os.wasi.clock_time_get(std.os.wasi.CLOCK_MONOTONIC, 1, &ns);
+            std.debug.assert(err == std.os.wasi.ESUCCESS);
+
+            return time_point.from(nanoseconds.from(@intCast(i64, ns)));
+        }
+        if (comptime std.Target.current.isDarwin()) {
+            var time_spec: std.os.darwin.timespec = undefined;
+            const err = std.os.clock_gettime(std.os.darwin.CLOCK_UPTIME_RAW);
+            std.debug.assert(err == 0);
+            
+            const secs = seconds.from(@intCast(seconds.representation, ts.tv_sec));
+            const nanosecs = nanoseconds.from(@intCast(nanoseconds.representation, ts.tv_nsec));
+            return time_point.from(secs.add(nanosecs));
+        }
+
+        var ts: std.os.timespec = undefined;
+        std.os.clock_gettime(std.os.CLOCK_MONOTONIC, &ts) catch unreachable;
+        const secs = seconds.from(@intCast(seconds.representation, ts.tv_sec));
+        const nanosecs = nanoseconds.from(@intCast(nanoseconds.representation, ts.tv_nsec));
+
+        return time_point.from(secs.add(nanosecs));
+    }
+};
+
+pub fn SteadyTime(comptime PeriodInSecs: var) type {
+    return TimePoint(SteadyClock, PeriodInSecs);
+}
 
 // TODO: SteadyClock
 // TODO: Write a good description, docs

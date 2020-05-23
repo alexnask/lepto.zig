@@ -10,14 +10,14 @@ pub fn from(comptime num: comptime_int, comptime denom: comptime_int) Ratio {
     return .{ .num = num, .denom = denom };
 }
 
-pub const nano  = Ratio.from(1, 1_000_000_000);
+pub const nano = Ratio.from(1, 1_000_000_000);
 pub const micro = Ratio.from(1, 1_000_000);
 pub const milli = Ratio.from(1, 1_000);
-pub const zero  = Ratio.from(0, 1);
-pub const one   = Ratio.from(1, 1);
-pub const kilo  = Ratio.from(1_000, 1);
-pub const mega  = Ratio.from(1_000_000, 1);
-pub const giga  = Ratio.from(1_000_000_000, 1);
+pub const zero = Ratio.from(0, 1);
+pub const one = Ratio.from(1, 1);
+pub const kilo = Ratio.from(1_000, 1);
+pub const mega = Ratio.from(1_000_000, 1);
+pub const giga = Ratio.from(1_000_000_000, 1);
 
 pub fn ctStr(comptime ratio: Ratio) []const u8 {
     return utils.ctIntToStr(ratio.num) ++ "/" ++ utils.ctIntToStr(ratio.denom);

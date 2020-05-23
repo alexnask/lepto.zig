@@ -49,11 +49,18 @@ test "Duration cast" {
     comptime std.debug.assert(durationCast(milliseconds, seconds.from(4)).compare(.eq, 4_000));
 }
 
-test "SysClock times" {
-    const t1 = SysClock.now();
+fn testClock(comptime Clock: type) void {
+     const t1 = Clock.now();
     std.time.sleep(1_000_000_000);
-    const t2 = SysClock.now();
+    const t2 = Clock.now();
 
     std.debug.assert(durationCast(seconds, t2.sub(t1)).compare(.eq, 1));
 }
 
+test "SysClock times" {
+   testClock(SysClock);
+}
+
+test "SteadyClock times" {
+    testClock(SteadyClock);
+}
