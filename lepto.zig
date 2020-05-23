@@ -381,7 +381,6 @@ pub const SteadyClock = struct {
     pub const time_point = TimePoint(SteadyClock, duration);
     pub const is_steady = true;
 
-    // @TODO: Actually implement this
     pub fn now() time_point {
         if (std.builtin.os.tag == .windows) {
             const u64_seconds = Duration(u64, Ratio.one);
@@ -394,7 +393,6 @@ pub const SteadyClock = struct {
         }
         if (std.builtin.os.tag == .wasi and !std.builtin.link_libc) {
             var ns: std.os.wasi.timestamp_t = undefined;
-            // TODO: Can we actually rely on the monotonic clock bein nanosecond resolution?
             const err = std.os.wasi.clock_time_get(std.os.wasi.CLOCK_MONOTONIC, 1, &ns);
             std.debug.assert(err == std.os.wasi.ESUCCESS);
 
@@ -402,7 +400,9 @@ pub const SteadyClock = struct {
         }
         if (comptime std.Target.current.isDarwin()) {
             var time_spec: std.os.darwin.timespec = undefined;
-            const err = std.os.clock_gettime(std.os.CLOCK_UPTIME_RAW);
+            // TODO: Add this to stdlib?
+            const CLOCK_UPTIME_RAW = 8;
+            const err = std.os.clock_gettime(CLOCK_UPTIME_RAW, &time_spec);
             std.debug.assert(err == 0);
             
             const secs = seconds.from(@intCast(seconds.representation, ts.tv_sec));
