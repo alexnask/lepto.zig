@@ -402,7 +402,7 @@ pub const SteadyClock = struct {
             var time_spec: std.os.darwin.timespec = undefined;
             // TODO: Add this to stdlib?
             const CLOCK_UPTIME_RAW = 8;
-            const err = std.os.clock_gettime(CLOCK_UPTIME_RAW, &time_spec);
+            const err = std.os.darwin.clock_gettime(CLOCK_UPTIME_RAW, &time_spec);
             std.debug.assert(err == 0);
             
             const secs = seconds.from(@intCast(seconds.representation, ts.tv_sec));
