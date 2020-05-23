@@ -404,9 +404,9 @@ pub const SteadyClock = struct {
             const CLOCK_UPTIME_RAW = 8;
             const err = std.os.darwin.clock_gettime(CLOCK_UPTIME_RAW, &time_spec);
             std.debug.assert(err == 0);
-            
-            const secs = seconds.from(@intCast(seconds.representation, ts.tv_sec));
-            const nanosecs = nanoseconds.from(@intCast(nanoseconds.representation, ts.tv_nsec));
+
+            const secs = seconds.from(@intCast(seconds.representation, time_spec.tv_sec));
+            const nanosecs = nanoseconds.from(@intCast(nanoseconds.representation, time_spec.tv_nsec));
             return time_point.from(secs.add(nanosecs));
         }
 
